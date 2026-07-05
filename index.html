@@ -626,9 +626,13 @@ function refreshTimerSubUI(){
 function updateButtonStates(){
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
+  const modeBuzzerBtn = document.getElementById('modeBuzzerBtn');
+  const modeAllinBtn = document.getElementById('modeAllinBtn');
   startBtn.disabled = (state !== 'idle');
   pauseBtn.disabled = (state === 'idle');
   pauseBtn.textContent = (state === 'paused') ? '▶ Resume' : '⏸ Pause';
+  modeBuzzerBtn.disabled = (state !== 'idle');
+  modeAllinBtn.disabled = (state !== 'idle');
 }
 
 function resetRoundState(){
@@ -774,6 +778,10 @@ document.getElementById('pauseBtn').addEventListener('click', ()=>{
 });
 
 document.getElementById('resetBtn').addEventListener('click', ()=>{
+  if(state !== 'idle'){
+    const ok = window.confirm('Reset the current round? This stops the timer and clears the current phrase.');
+    if(!ok) return;
+  }
   resetRoundState();
 });
 
