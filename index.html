@@ -43,7 +43,18 @@
     color: var(--text-dim);
     font-size: 14px;
     letter-spacing: 1px;
-    margin: 6px 0 26px;
+    margin: 6px 0 20px;
+  }
+
+  .mode-toggle{ display:flex; gap:8px; margin-bottom: 20px; }
+  .mode-toggle button{
+    flex:1; background: var(--surface); color: var(--text-dim);
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+    padding: 12px 8px; font-size: 13px; font-weight:700; letter-spacing:0.4px;
+  }
+  .mode-toggle button.active{
+    background: linear-gradient(90deg, var(--gold), var(--hot));
+    color:#1a1030; border-color: transparent;
   }
 
   .timer-wrap{
@@ -69,6 +80,20 @@
     font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
   }
 
+  .no-timer-banner{
+    display:none;
+    width: 220px; margin: 0 auto 20px;
+    align-items:center; justify-content:center; flex-direction:column;
+    text-align:center; gap: 6px;
+    padding: 30px 10px;
+    background: var(--surface);
+    border-radius: 50%;
+    height: 220px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .no-timer-banner .icon{ font-size: 38px; }
+  .no-timer-banner .msg{ font-size: 13px; color: var(--text-dim); line-height:1.4; padding: 0 18px; }
+
   .card{
     background: linear-gradient(160deg, var(--surface), var(--surface2));
     border-radius: 18px;
@@ -92,6 +117,7 @@
   .card .diff{
     font-size: 11px; color: var(--text-dim); letter-spacing: 1px;
   }
+  .card .cat:empty, .card .diff:empty{ display:none; }
 
   .buzz-flash{
     position: fixed; inset:0; background: var(--hot);
@@ -142,14 +168,20 @@
   }
 
   details{
-    margin-top: 22px; background: var(--surface); border-radius: 14px;
+    margin-top: 18px; background: var(--surface); border-radius: 14px;
     padding: 4px 16px; border: 1px solid rgba(255,255,255,0.06);
   }
   summary{ cursor:pointer; padding: 12px 0; font-weight: 700; font-size: 14px; letter-spacing: 0.5px; }
-  .setting-row{ display:flex; align-items:center; justify-content:space-between; padding: 10px 0; font-size: 14px; color: var(--text-dim); }
-  .setting-row input[type=range]{ width: 140px; }
-  .setting-row .val{ color: var(--text); font-weight: 700; width: 40px; text-align:right; }
+  .setting-row{ display:flex; align-items:center; justify-content:space-between; padding: 10px 0; font-size: 14px; color: var(--text-dim); gap: 10px; }
+  .setting-row input[type=range]{ width: 130px; }
+  .setting-row select{
+    background:var(--surface2); color:var(--text); border:1px solid rgba(255,255,255,0.15);
+    border-radius:8px; padding:6px 8px; font-size: 13px; max-width: 220px;
+  }
+  .setting-row .val{ color: var(--text); font-weight: 700; width: 44px; text-align:right; flex-shrink:0; }
   .how-to{ font-size: 13px; color: var(--text-dim); line-height: 1.6; padding-bottom: 10px; }
+  .bank-status{ font-size: 12px; color: var(--text-dim); padding: 8px 0; }
+  input[type=file]{ color: var(--text-dim); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -158,7 +190,12 @@
 
 <div class="app">
   <h1>Catchphrase</h1>
-  <div class="subtitle">pass it round before the buzzer</div>
+  <div class="subtitle" id="subtitle">pass it round before the buzzer</div>
+
+  <div class="mode-toggle">
+    <button id="modeBuzzerBtn" class="active">🔔 Buzzer Mode</button>
+    <button id="modeAllinBtn">🔄 All-In Mode</button>
+  </div>
 
   <div class="timer-wrap" id="timerWrap">
     <svg viewBox="0 0 200 200">
@@ -166,6 +203,11 @@
       <circle class="ring-fg" id="ringFg" cx="100" cy="100" r="88" stroke-dasharray="553" stroke-dashoffset="0"></circle>
     </svg>
     <div class="timer-num" id="timerNum">45</div>
+  </div>
+
+  <div class="no-timer-banner" id="noTimerBanner">
+    <div class="icon">🎲</div>
+    <div class="msg">Free play — no clock, describe at your own pace</div>
   </div>
 
   <div class="card">
@@ -176,7 +218,7 @@
 
   <div class="controls">
     <button class="btn-got" id="gotBtn">✔ GOT IT</button>
-    <button class="btn-skip" id="skipBtn">SKIP (−5s)</button>
+    <button class="btn-skip" id="skipBtn">SKIP</button>
   </div>
 
   <div class="transport">
@@ -185,7 +227,7 @@
     <button id="resetBtn">↺ Reset</button>
   </div>
 
-  <div class="scores">
+  <div class="scores" id="scores">
     <div class="score-box">
       <div class="label">Team A</div>
       <div class="num" id="scoreA">0</div>
@@ -206,143 +248,198 @@
 
   <details>
     <summary>How to play</summary>
-    <div class="how-to">
-      One person holds the screen and reads the top word/phrase, describing it (no rhyming, no saying the word itself) so their team guesses it. When guessed, hit <b>GOT IT</b> — the phrase changes and the device passes to the other team immediately. Keep passing back and forth as fast as you like. Whoever is holding the device when the buzzer sounds, the <i>other</i> team scores the point. Hit <b>SKIP</b> if a card's too hard or awkward — it costs 5 seconds off the clock. Start a new round after each buzzer.
+    <div class="how-to" id="howToBuzzer">
+      <b>Buzzer Mode:</b> One person holds the screen and describes the top phrase (no rhyming, no saying the word itself) so their team guesses it. Hit <b>GOT IT</b> to move to the next phrase and pass the device to the other team immediately. Whoever is holding the device when the buzzer sounds, the <i>other</i> team scores the point. <b>SKIP</b> a phrase if it's too tricky — costs time off the clock if a timer is running.
+    </div>
+    <div class="how-to" id="howToAllin" style="display:none;">
+      <b>All-In Mode:</b> Take turns going round the table describing phrases — everyone else guesses at once. Whoever calls it correctly first gets the point (keep score on paper, or however you like — agree on a target score to win). Hit <b>GOT IT</b> when someone guesses correctly to bring up the next phrase. Use a 5-minute timed round for pacing, or switch to free play for no clock at all.
     </div>
   </details>
 
   <details>
     <summary>Settings</summary>
-    <div class="setting-row">
-      <span>Timer mode</span>
-      <select id="timerMode" style="background:var(--surface2);color:var(--text);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 8px;">
-        <option value="random" selected>Random (hidden - pass till it buzzes)</option>
-        <option value="fixed">Fixed length (countdown shown)</option>
-      </select>
+
+    <div id="buzzerSettings">
+      <div class="setting-row">
+        <span>Timer style</span>
+        <select id="buzzerTimerMode">
+          <option value="random" selected>Random (hidden - pass till it buzzes)</option>
+          <option value="fixed">Fixed length (countdown shown)</option>
+        </select>
+      </div>
+      <div class="setting-row" id="fixedLenRow" style="display:none;">
+        <span>Round length</span>
+        <input type="range" id="roundLen" min="20" max="180" step="5" value="45">
+        <span class="val" id="roundLenVal">45s</span>
+      </div>
+      <div class="setting-row" id="minLenRow">
+        <span>Random min</span>
+        <input type="range" id="minLen" min="10" max="90" step="5" value="30">
+        <span class="val" id="minLenVal">30s</span>
+      </div>
+      <div class="setting-row" id="maxLenRow">
+        <span>Random max</span>
+        <input type="range" id="maxLen" min="20" max="150" step="5" value="90">
+        <span class="val" id="maxLenVal">90s</span>
+      </div>
     </div>
-    <div class="setting-row" id="fixedLenRow" style="display:none;">
-      <span>Round length</span>
-      <input type="range" id="roundLen" min="20" max="90" step="5" value="45">
-      <span class="val" id="roundLenVal">45s</span>
+
+    <div id="allinSettings" style="display:none;">
+      <div class="setting-row">
+        <span>Round style</span>
+        <select id="allinTimerMode">
+          <option value="timed" selected>5-min round (visible countdown)</option>
+          <option value="none">No timer — free play</option>
+        </select>
+      </div>
+      <div class="setting-row" id="allinLenRow">
+        <span>Round length</span>
+        <input type="range" id="allinLen" min="60" max="600" step="30" value="300">
+        <span class="val" id="allinLenVal">300s</span>
+      </div>
     </div>
-    <div class="setting-row" id="minLenRow">
-      <span>Random min</span>
-      <input type="range" id="minLen" min="10" max="90" step="5" value="30">
-      <span class="val" id="minLenVal">30s</span>
-    </div>
-    <div class="setting-row" id="maxLenRow">
-      <span>Random max</span>
-      <input type="range" id="maxLen" min="20" max="150" step="5" value="90">
-      <span class="val" id="maxLenVal">90s</span>
-    </div>
-    <div class="setting-row">
+
+    <div class="setting-row" id="skipPenRow">
       <span>Skip penalty</span>
       <input type="range" id="skipPen" min="0" max="15" step="1" value="5">
       <span class="val" id="skipPenVal">5s</span>
     </div>
-    <div class="setting-row">
+    <div class="setting-row" id="soundRow">
       <span>Sound</span>
-      <input type="checkbox" id="soundToggle" checked style="width:20px;height:20px;">
+      <select id="soundMode">
+        <option value="end" selected>Speed up near the end</option>
+        <option value="start">Speed up from the start</option>
+        <option value="off">Off</option>
+      </select>
+    </div>
+  </details>
+
+  <details>
+    <summary>Phrase Library</summary>
+    <div class="bank-status" id="bankStatus">Loading default library…</div>
+    <div class="setting-row" style="justify-content:flex-start;">
+      <input type="file" id="phraseUpload" accept=".txt">
+    </div>
+    <div class="setting-row">
+      <span style="font-size:12px;">One phrase per line. Replaces the list for this session only — nothing is saved or uploaded anywhere.</span>
+    </div>
+    <div class="setting-row">
+      <button id="resetBankBtn" style="background:var(--surface2);color:var(--text);border:1px solid rgba(255,255,255,0.15); width:100%;">Reset to default list</button>
     </div>
   </details>
 </div>
 
 <script>
-const PHRASES = [
-  // EASY
+// ---- Default phrase bank (embedded fallback in case phrases.json can't be fetched,
+// e.g. if this file is opened directly instead of via a web server) ----
+const DEFAULT_PHRASES = [
   {t:"Toothbrush", d:"e", c:"Objects"},
   {t:"Birthday cake", d:"e", c:"Everyday"},
   {t:"Kangaroo", d:"e", c:"Animals"},
   {t:"Swimming pool", d:"e", c:"Places"},
   {t:"Pizza", d:"e", c:"Food"},
-  {t:"Christmas tree", d:"e", c:"Everyday"},
-  {t:"School bus", d:"e", c:"Objects"},
   {t:"Rainbow", d:"e", c:"Nature"},
-  {t:"Snowman", d:"e", c:"Everyday"},
   {t:"Umbrella", d:"e", c:"Objects"},
-  {t:"Traffic light", d:"e", c:"Objects"},
   {t:"Ice cream truck", d:"e", c:"Everyday"},
   {t:"Skateboard", d:"e", c:"Objects"},
   {t:"Fireworks", d:"e", c:"Everyday"},
-  {t:"Backpack", d:"e", c:"Objects"},
-  {t:"Sunglasses", d:"e", c:"Objects"},
-  {t:"Beach ball", d:"e", c:"Objects"},
-  {t:"Popcorn", d:"e", c:"Food"},
-  {t:"Roller coaster", d:"e", c:"Places"},
   {t:"Teddy bear", d:"e", c:"Objects"},
   {t:"Bicycle", d:"e", c:"Objects"},
-  {t:"Campfire", d:"e", c:"Everyday"},
   {t:"Superman", d:"e", c:"Movies/TV"},
-  {t:"Pirate ship", d:"e", c:"Everyday"},
   {t:"Volcano", d:"e", c:"Nature"},
-  {t:"Rubber duck", d:"e", c:"Objects"},
   {t:"Trampoline", d:"e", c:"Objects"},
-  {t:"Peanut butter", d:"e", c:"Food"},
-  {t:"Fish and chips", d:"e", c:"Food"},
   {t:"Kookaburra", d:"e", c:"Animals"},
   {t:"Vegemite", d:"e", c:"Food"},
   {t:"AFL Grand Final", d:"e", c:"Sport"},
-  {t:"Melbourne Cup", d:"e", c:"Sport"},
   {t:"Bondi Beach", d:"e", c:"Places"},
-  {t:"Great Barrier Reef", d:"e", c:"Places"},
-  {t:"Meat pie", d:"e", c:"Food"},
-  {t:"Thongs (the footwear)", d:"e", c:"Objects"},
-  {t:"Ute", d:"e", c:"Objects"},
   {t:"Koala", d:"e", c:"Animals"},
-  {t:"Surfboard", d:"e", c:"Objects"},
-  {t:"Esky", d:"e", c:"Objects"},
-  {t:"Sandcastle", d:"e", c:"Everyday"},
-  {t:"Lemonade stand", d:"e", c:"Everyday"},
-  {t:"Paper airplane", d:"e", c:"Objects"},
-  {t:"Board game", d:"e", c:"Objects"},
-  {t:"Water balloon fight", d:"e", c:"Everyday"},
-  {t:"Treasure hunt", d:"e", c:"Everyday"},
-  {t:"School canteen", d:"e", c:"Places"},
-  {t:"Lunch box", d:"e", c:"Objects"},
-  {t:"Show and tell", d:"e", c:"Everyday"},
-  {t:"Birthday candles", d:"e", c:"Objects"},
-  {t:"Ferris wheel", d:"e", c:"Objects"},
-  {t:"Merry-go-round", d:"e", c:"Objects"},
-  {t:"Face painting", d:"e", c:"Everyday"},
-  {t:"Piggy bank", d:"e", c:"Objects"},
-  {t:"Jump rope", d:"e", c:"Objects"},
-  {t:"Hopscotch", d:"e", c:"Everyday"},
-  {t:"Cartwheel", d:"e", c:"Everyday"},
-  {t:"Sunscreen", d:"e", c:"Objects"},
-  {t:"Flip-flops", d:"e", c:"Objects"},
-  {t:"Ice block (icy pole)", d:"e", c:"Food"},
 
-  // MEDIUM (small handful)
   {t:"Social media influencer", d:"m", c:"Pop Culture"},
+  {t:"Netflix and chill", d:"m", c:"Pop Culture"},
+  {t:"Home schooling", d:"m", c:"Everyday"},
+  {t:"Automotive mechanic", d:"m", c:"Occupations"},
+  {t:"Formula 1 pit stop", d:"m", c:"Sport"},
+  {t:"Bitcoin", d:"m", c:"Tech"},
+  {t:"Artificial intelligence", d:"m", c:"Tech"},
+  {t:"Self-driving car", d:"m", c:"Tech"},
+  {t:"Video game controller", d:"m", c:"Tech"},
   {t:"Escape room", d:"m", c:"Everyday"},
-  {t:"Air fryer", d:"m", c:"Objects"},
+  {t:"Table tennis", d:"m", c:"Sport"},
+  {t:"Online dating", d:"m", c:"Everyday"},
+  {t:"Meal prep", d:"m", c:"Everyday"},
+  {t:"Standing desk", d:"m", c:"Objects"},
+  {t:"Noise-cancelling headphones", d:"m", c:"Tech"},
+  {t:"Electric vehicle charger", d:"m", c:"Tech"},
+  {t:"Smart home assistant", d:"m", c:"Tech"},
+  {t:"Podcast", d:"m", c:"Pop Culture"},
+  {t:"Internet meme", d:"m", c:"Pop Culture"},
   {t:"Group chat", d:"m", c:"Everyday"},
   {t:"Zoom meeting", d:"m", c:"Everyday"},
-  {t:"Karaoke night", d:"m", c:"Everyday"},
-  {t:"Trivia night", d:"m", c:"Everyday"},
-  {t:"Camping trip", d:"m", c:"Everyday"},
-  {t:"Family reunion", d:"m", c:"Everyday"},
-  {t:"First date", d:"m", c:"Everyday"},
+  {t:"Air fryer", d:"m", c:"Objects"},
+  {t:"Food delivery app", d:"m", c:"Tech"},
+  {t:"Streaming service", d:"m", c:"Tech"},
+  {t:"Password manager", d:"m", c:"Tech"},
+  {t:"Cloud storage", d:"m", c:"Tech"},
+  {t:"Virtual reality headset", d:"m", c:"Tech"},
+  {t:"Drone photography", d:"m", c:"Tech"},
+  {t:"3D printer", d:"m", c:"Tech"},
+  {t:"Solar panel", d:"m", c:"Tech"},
+  {t:"Electric scooter", d:"m", c:"Objects"},
+  {t:"Fantasy football league", d:"m", c:"Sport"},
+  {t:"Home renovation show", d:"m", c:"Movies/TV"},
+  {t:"True crime podcast", d:"m", c:"Pop Culture"},
+  {t:"Reality TV star", d:"m", c:"Movies/TV"},
+  {t:"Stand-up comedian", d:"m", c:"Occupations"},
   {t:"Marathon runner", d:"m", c:"Sport"},
+  {t:"Chess grandmaster", d:"m", c:"Occupations"},
   {t:"Astronaut", d:"m", c:"Occupations"},
-  {t:"Superhero movie", d:"m", c:"Movies/TV"},
-  {t:"Vinyl record", d:"m", c:"Objects"},
-  {t:"Stargazing", d:"m", c:"Everyday"},
-  {t:"Speed dating", d:"m", c:"Everyday"},
-  {t:"Open mic night", d:"m", c:"Everyday"},
-  {t:"Silent disco", d:"m", c:"Pop Culture"},
-  {t:"Scavenger hunt", d:"m", c:"Everyday"},
-  {t:"Flash mob", d:"m", c:"Pop Culture"},
-  {t:"Book signing", d:"m", c:"Everyday"},
-  {t:"Farmers market", d:"m", c:"Places"},
-  {t:"Food truck", d:"m", c:"Places"},
-  {t:"Garage sale", d:"m", c:"Everyday"},
-  {t:"Housewarming party", d:"m", c:"Everyday"},
-  {t:"Baby shower", d:"m", c:"Everyday"},
-  {t:"Surprise party", d:"m", c:"Everyday"},
-  {t:"Potluck dinner", d:"m", c:"Everyday"},
-  {t:"Neighbourhood watch", d:"m", c:"Everyday"},
+  {t:"Deep sea diver", d:"m", c:"Occupations"},
+  {t:"Wildlife photographer", d:"m", c:"Occupations"},
+  {t:"Winter Olympics", d:"m", c:"Sport"},
+  {t:"World Cup final", d:"m", c:"Sport"},
+  {t:"Grand Slam tennis", d:"m", c:"Sport"},
+  {t:"Surfing competition", d:"m", c:"Sport"},
+  {t:"Rock climbing gym", d:"m", c:"Places"},
+  {t:"Yoga retreat", d:"m", c:"Places"},
+  {t:"Meditation app", d:"m", c:"Tech"},
+  {t:"Personal trainer", d:"m", c:"Occupations"},
+  {t:"Physiotherapist", d:"m", c:"Occupations"},
+  {t:"Emergency room", d:"m", c:"Places"},
+  {t:"Family reunion", d:"m", c:"Everyday"},
+  {t:"Job interview", d:"m", c:"Everyday"},
+  {t:"First date", d:"m", c:"Everyday"},
+  {t:"Wedding speech", d:"m", c:"Everyday"},
+  {t:"Graduation ceremony", d:"m", c:"Everyday"},
+  {t:"Road trip playlist", d:"m", c:"Everyday"},
+  {t:"Camping trip", d:"m", c:"Everyday"},
+  {t:"National park", d:"m", c:"Places"},
+  {t:"Coral reef", d:"m", c:"Nature"},
+
+  {t:"Cognitive dissonance", d:"h", c:"Ideas"},
+  {t:"Confirmation bias", d:"h", c:"Ideas"},
+  {t:"Opportunity cost", d:"h", c:"Ideas"},
+  {t:"Diminishing returns", d:"h", c:"Ideas"},
+  {t:"Placebo effect", d:"h", c:"Ideas"},
+  {t:"Sunk cost fallacy", d:"h", c:"Ideas"},
+  {t:"Occam's razor", d:"h", c:"Ideas"},
+  {t:"Schrodinger's cat", d:"h", c:"Ideas"},
+  {t:"Doppler effect", d:"h", c:"Science"},
+  {t:"Photosynthesis", d:"h", c:"Science"},
+  {t:"Tectonic plates", d:"h", c:"Science"},
+  {t:"Quantum entanglement", d:"h", c:"Science"},
+  {t:"Blockchain ledger", d:"h", c:"Tech"},
+  {t:"Neural network", d:"h", c:"Tech"},
+  {t:"Supply and demand", d:"h", c:"Ideas"},
+  {t:"Carbon footprint", d:"h", c:"Ideas"},
+  {t:"Greenhouse effect", d:"h", c:"Science"},
+  {t:"Biodiversity", d:"h", c:"Science"},
+  {t:"Circadian rhythm", d:"h", c:"Science"},
+  {t:"Butterfly effect", d:"h", c:"Ideas"},
 ];
+
+let PHRASES = DEFAULT_PHRASES.slice();
+let usingCustom = false;
+let customFileName = '';
 
 let deck = [];
 let deckIndex = 0;
@@ -361,47 +458,123 @@ function refillDeck(){
   deckIndex = 0;
 }
 
+function diffLabelFor(d){
+  if(d === 'e') return 'Easy';
+  if(d === 'h') return 'Hard';
+  if(d === 'm') return 'Medium';
+  return '';
+}
+
 function nextCard(){
+  if(PHRASES.length === 0) return;
   if(deckIndex >= deck.length) refillDeck();
   const card = deck[deckIndex++];
   document.getElementById('cardTerm').textContent = card.t;
-  document.getElementById('cardCat').textContent = card.c;
-  const diffLabel = card.d === 'e' ? 'Easy' : card.d === 'h' ? 'Hard' : 'Medium';
-  document.getElementById('cardDiff').textContent = diffLabel;
+  document.getElementById('cardCat').textContent = card.c || '';
+  document.getElementById('cardDiff').textContent = diffLabelFor(card.d);
 }
 
-refillDeck();
+function updateBankStatus(){
+  const el = document.getElementById('bankStatus');
+  if(usingCustom){
+    el.textContent = `Using custom list: ${customFileName} (${PHRASES.length} phrases, this session only)`;
+  } else {
+    el.textContent = `Using default library (${PHRASES.length} phrases)`;
+  }
+}
 
-// ---- Timer ----
+async function loadDefaultPhrases(){
+  try{
+    const res = await fetch('phrases.json', { cache: 'no-store' });
+    if(res.ok){
+      const data = await res.json();
+      if(Array.isArray(data) && data.length){
+        PHRASES = data;
+      }
+    }
+  }catch(e){
+    // fetch blocked (e.g. opened as a local file) - falls back to embedded DEFAULT_PHRASES
+  }
+  refillDeck();
+  updateBankStatus();
+}
+
+refillDeck(); // immediate sync fallback so the game is usable before fetch resolves
+loadDefaultPhrases();
+
+document.getElementById('phraseUpload').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const lines = reader.result.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if(lines.length === 0) return;
+    PHRASES = lines.map(line => ({ t: line, d: '', c: '' }));
+    usingCustom = true;
+    customFileName = file.name;
+    refillDeck();
+    updateBankStatus();
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById('resetBankBtn').addEventListener('click', ()=>{
+  usingCustom = false;
+  customFileName = '';
+  document.getElementById('phraseUpload').value = '';
+  loadDefaultPhrases();
+});
+
+// ---- Game mode state ----
+let gameMode = 'buzzer';       // 'buzzer' | 'allin'
+let buzzerTimerMode = 'random'; // 'random' | 'fixed'
+let allinTimerMode = 'timed';   // 'timed' | 'none'
+let roundLength = 45;           // buzzer fixed length
+let minLen = 30, maxLen = 90;   // buzzer random range
+let allinRoundLength = 300;     // all-in timed length
+let soundMode = 'end';          // 'off' | 'end' | 'start'
+
+let hasTimer = true;
+let hiddenCountdown = false;
+let currentRoundLength = 0;
+let timeLeft = 0;
+let timerId = null;
+let running = false;
+let nextTickAt = 0;
+
+function getConfig(){
+  if(gameMode === 'buzzer'){
+    if(buzzerTimerMode === 'random'){
+      const lo = Math.min(minLen, maxLen);
+      const hi = Math.max(minLen, maxLen);
+      return { hasTimer: true, hidden: true, length: lo + Math.random() * (hi - lo) };
+    }
+    return { hasTimer: true, hidden: false, length: roundLength };
+  } else {
+    if(allinTimerMode === 'timed'){
+      return { hasTimer: true, hidden: false, length: allinRoundLength };
+    }
+    return { hasTimer: false, hidden: true, length: Infinity };
+  }
+}
+
+// ---- Ring ----
 const ring = document.getElementById('ringFg');
 const CIRC = 2 * Math.PI * 88;
 ring.setAttribute('stroke-dasharray', CIRC);
 
-let roundLength = 45;      // used in fixed mode
-let minLen = 30, maxLen = 90; // used in random mode
-let timerMode = 'random';  // 'random' | 'fixed'
-let currentRoundLength = maxLen;
-let timeLeft = currentRoundLength;
-let timerId = null;
-let running = false;
-
 const timerNum = document.getElementById('timerNum');
 const timerWrap = document.getElementById('timerWrap');
-
-function pickRoundLength(){
-  if(timerMode === 'random'){
-    const lo = Math.min(minLen, maxLen);
-    const hi = Math.max(minLen, maxLen);
-    return lo + Math.random() * (hi - lo);
-  }
-  return roundLength;
-}
+const noTimerBanner = document.getElementById('noTimerBanner');
 
 function updateRing(){
+  timerWrap.style.display = hasTimer ? 'block' : 'none';
+  noTimerBanner.style.display = hasTimer ? 'none' : 'flex';
+  if(!hasTimer) return;
+
   const frac = Math.max(0, timeLeft / currentRoundLength);
 
-  if(timerMode === 'random'){
-    // Never reveal how much time is left - ring stays full, no number shown
+  if(hiddenCountdown){
     ring.setAttribute('stroke-dashoffset', 0);
     timerNum.textContent = '🔥';
   } else {
@@ -416,43 +589,64 @@ function updateRing(){
   ring.style.stroke = color;
   timerWrap.style.setProperty('--pulse-duration', pulse + 's');
 }
-updateRing();
 
-// ---- Timer mode UI ----
-const timerModeSelect = document.getElementById('timerMode');
-const fixedLenRow = document.getElementById('fixedLenRow');
-const minLenRow = document.getElementById('minLenRow');
-const maxLenRow = document.getElementById('maxLenRow');
-
-function refreshModeUI(){
-  const isFixed = timerModeSelect.value === 'fixed';
-  fixedLenRow.style.display = isFixed ? 'flex' : 'none';
-  minLenRow.style.display = isFixed ? 'none' : 'flex';
-  maxLenRow.style.display = isFixed ? 'none' : 'flex';
+// ---- Mode + settings UI ----
+function applyModeUI(){
+  const isBuzzer = gameMode === 'buzzer';
+  document.getElementById('buzzerSettings').style.display = isBuzzer ? 'block' : 'none';
+  document.getElementById('allinSettings').style.display = isBuzzer ? 'none' : 'block';
+  document.getElementById('scores').style.display = isBuzzer ? 'flex' : 'none';
+  document.getElementById('howToBuzzer').style.display = isBuzzer ? 'block' : 'none';
+  document.getElementById('howToAllin').style.display = isBuzzer ? 'none' : 'block';
+  document.getElementById('subtitle').textContent = isBuzzer
+    ? 'pass it round before the buzzer'
+    : 'take turns describing — first to call it wins the point';
+  document.getElementById('modeBuzzerBtn').classList.toggle('active', isBuzzer);
+  document.getElementById('modeAllinBtn').classList.toggle('active', !isBuzzer);
+  refreshTimerSubUI();
 }
-refreshModeUI();
 
-timerModeSelect.addEventListener('change', ()=>{
-  timerMode = timerModeSelect.value;
-  refreshModeUI();
-  if(!running){
-    currentRoundLength = pickRoundLength();
-    timeLeft = currentRoundLength;
-    updateRing();
+function refreshTimerSubUI(){
+  if(gameMode === 'buzzer'){
+    const isFixed = buzzerTimerMode === 'fixed';
+    document.getElementById('fixedLenRow').style.display = isFixed ? 'flex' : 'none';
+    document.getElementById('minLenRow').style.display = isFixed ? 'none' : 'flex';
+    document.getElementById('maxLenRow').style.display = isFixed ? 'none' : 'flex';
+    document.getElementById('skipPenRow').style.display = 'flex';
+    document.getElementById('soundRow').style.display = 'flex';
+  } else {
+    const isTimed = allinTimerMode === 'timed';
+    document.getElementById('allinLenRow').style.display = isTimed ? 'flex' : 'none';
+    document.getElementById('skipPenRow').style.display = isTimed ? 'flex' : 'none';
+    document.getElementById('soundRow').style.display = isTimed ? 'flex' : 'none';
   }
-});
+}
 
-const minLenInput = document.getElementById('minLen');
-const minLenVal = document.getElementById('minLenVal');
-minLenInput.addEventListener('input', ()=>{
-  minLen = parseInt(minLenInput.value, 10);
-  minLenVal.textContent = minLen + 's';
+function resetRoundState(){
+  running = false;
+  if(timerId) clearInterval(timerId);
+  const cfg = getConfig();
+  hasTimer = cfg.hasTimer;
+  hiddenCountdown = cfg.hidden;
+  currentRoundLength = cfg.length;
+  timeLeft = currentRoundLength;
+  updateRing();
+  document.getElementById('cardTerm').textContent = "Press Start to begin";
+  document.getElementById('cardCat').textContent = "CATEGORY";
+  document.getElementById('cardDiff').textContent = "\u00A0";
+}
+
+document.getElementById('modeBuzzerBtn').addEventListener('click', ()=>{
+  if(gameMode === 'buzzer') return;
+  gameMode = 'buzzer';
+  applyModeUI();
+  resetRoundState();
 });
-const maxLenInput = document.getElementById('maxLen');
-const maxLenVal = document.getElementById('maxLenVal');
-maxLenInput.addEventListener('input', ()=>{
-  maxLen = parseInt(maxLenInput.value, 10);
-  maxLenVal.textContent = maxLen + 's';
+document.getElementById('modeAllinBtn').addEventListener('click', ()=>{
+  if(gameMode === 'allin') return;
+  gameMode = 'allin';
+  applyModeUI();
+  resetRoundState();
 });
 
 // ---- Sound (Web Audio, no external files) ----
@@ -464,7 +658,6 @@ function getCtx(){
 function unlockAudio(){
   const ctx = getCtx();
   if(ctx.state === 'suspended') ctx.resume();
-  // Play a near-silent blip so iOS/Safari fully unlocks the audio pipeline
   try{
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -475,7 +668,7 @@ function unlockAudio(){
   }catch(e){}
 }
 function beep(freq, dur, vol){
-  if(!document.getElementById('soundToggle').checked) return;
+  if(soundMode === 'off') return;
   try{
     const ctx = getCtx();
     if(ctx.state === 'suspended') ctx.resume();
@@ -499,7 +692,7 @@ function buzz(){
 const buzzFlash = document.getElementById('buzzFlash');
 function triggerBuzz(){
   running = false;
-  clearInterval(timerId);
+  if(timerId) clearInterval(timerId);
   buzz();
   buzzFlash.classList.add('show');
   if(navigator.vibrate) navigator.vibrate([200,100,200]);
@@ -517,8 +710,19 @@ function tickLoop(){
     triggerBuzz();
     return;
   }
-  if(Math.ceil(timeLeft) !== Math.ceil(timeLeft + 0.1) && timeLeft <= 10){
-    tick();
+
+  if(soundMode === 'end'){
+    if(Math.ceil(timeLeft) !== Math.ceil(timeLeft + 0.1) && timeLeft <= 10){
+      tick();
+    }
+  } else if(soundMode === 'start'){
+    const elapsed = currentRoundLength - timeLeft;
+    if(elapsed >= nextTickAt){
+      tick();
+      const frac = Math.min(1, elapsed / currentRoundLength);
+      const interval = 1.6 - frac * 1.4;
+      nextTickAt = elapsed + Math.max(0.15, interval);
+    }
   }
   updateRing();
 }
@@ -527,58 +731,123 @@ document.getElementById('startBtn').addEventListener('click', ()=>{
   if(running) return;
   running = true;
   unlockAudio();
-  if(document.getElementById('cardTerm').textContent.includes('Press Start') ||
-     document.getElementById('cardTerm').textContent.includes('BUZZ')){
+  const term = document.getElementById('cardTerm').textContent;
+  if(term.includes('Press Start') || term.includes('BUZZ') || term.includes('Round over')){
     nextCard();
   }
-  currentRoundLength = pickRoundLength();
+  const cfg = getConfig();
+  hasTimer = cfg.hasTimer;
+  hiddenCountdown = cfg.hidden;
+  currentRoundLength = cfg.length;
   timeLeft = currentRoundLength;
+  nextTickAt = 0;
   updateRing();
-  timerId = setInterval(tickLoop, 100);
+  if(hasTimer){
+    timerId = setInterval(tickLoop, 100);
+  }
 });
+
 document.getElementById('pauseBtn').addEventListener('click', ()=>{
   running = false;
-  clearInterval(timerId);
+  if(timerId) clearInterval(timerId);
 });
+
 document.getElementById('resetBtn').addEventListener('click', ()=>{
-  running = false;
-  clearInterval(timerId);
-  currentRoundLength = pickRoundLength();
-  timeLeft = currentRoundLength;
-  updateRing();
-  document.getElementById('cardTerm').textContent = "Press Start to begin";
-  document.getElementById('cardCat').textContent = "CATEGORY";
-  document.getElementById('cardDiff').textContent = "\u00A0";
+  resetRoundState();
 });
 
 document.getElementById('gotBtn').addEventListener('click', ()=>{
   if(!running) return;
   nextCard();
 });
+
 document.getElementById('skipBtn').addEventListener('click', ()=>{
   if(!running) return;
-  const penalty = parseInt(document.getElementById('skipPen').value, 10);
-  timeLeft = Math.max(0, timeLeft - penalty);
-  updateRing();
+  if(hasTimer){
+    const penalty = parseInt(document.getElementById('skipPen').value, 10);
+    timeLeft = Math.max(0, timeLeft - penalty);
+    updateRing();
+    if(timeLeft <= 0){
+      nextCard();
+      triggerBuzz();
+      return;
+    }
+  }
   nextCard();
-  if(timeLeft <= 0) triggerBuzz();
 });
 
-// ---- Settings ----
+// ---- Buzzer settings ----
+const buzzerTimerModeSelect = document.getElementById('buzzerTimerMode');
+buzzerTimerModeSelect.addEventListener('change', ()=>{
+  buzzerTimerMode = buzzerTimerModeSelect.value;
+  refreshTimerSubUI();
+  if(!running && gameMode === 'buzzer'){
+    const cfg = getConfig();
+    hasTimer = cfg.hasTimer; hiddenCountdown = cfg.hidden;
+    currentRoundLength = cfg.length; timeLeft = cfg.length;
+    updateRing();
+  }
+});
+
 const roundLenInput = document.getElementById('roundLen');
 const roundLenVal = document.getElementById('roundLenVal');
 roundLenInput.addEventListener('input', ()=>{
   roundLength = parseInt(roundLenInput.value, 10);
   roundLenVal.textContent = roundLength + 's';
-  if(!running && timerMode === 'fixed'){ currentRoundLength = roundLength; timeLeft = roundLength; updateRing(); }
+  if(!running && gameMode === 'buzzer' && buzzerTimerMode === 'fixed'){
+    currentRoundLength = roundLength; timeLeft = roundLength; updateRing();
+  }
 });
+
+const minLenInput = document.getElementById('minLen');
+const minLenVal = document.getElementById('minLenVal');
+minLenInput.addEventListener('input', ()=>{
+  minLen = parseInt(minLenInput.value, 10);
+  minLenVal.textContent = minLen + 's';
+});
+const maxLenInput = document.getElementById('maxLen');
+const maxLenVal = document.getElementById('maxLenVal');
+maxLenInput.addEventListener('input', ()=>{
+  maxLen = parseInt(maxLenInput.value, 10);
+  maxLenVal.textContent = maxLen + 's';
+});
+
+// ---- All-in settings ----
+const allinTimerModeSelect = document.getElementById('allinTimerMode');
+allinTimerModeSelect.addEventListener('change', ()=>{
+  allinTimerMode = allinTimerModeSelect.value;
+  refreshTimerSubUI();
+  if(!running && gameMode === 'allin'){
+    const cfg = getConfig();
+    hasTimer = cfg.hasTimer; hiddenCountdown = cfg.hidden;
+    currentRoundLength = cfg.length; timeLeft = cfg.length;
+    updateRing();
+  }
+});
+
+const allinLenInput = document.getElementById('allinLen');
+const allinLenVal = document.getElementById('allinLenVal');
+allinLenInput.addEventListener('input', ()=>{
+  allinRoundLength = parseInt(allinLenInput.value, 10);
+  allinLenVal.textContent = allinRoundLength + 's';
+  if(!running && gameMode === 'allin' && allinTimerMode === 'timed'){
+    currentRoundLength = allinRoundLength; timeLeft = allinRoundLength; updateRing();
+  }
+});
+
+// ---- Shared settings ----
 const skipPenInput = document.getElementById('skipPen');
 const skipPenVal = document.getElementById('skipPenVal');
 skipPenInput.addEventListener('input', ()=>{
   skipPenVal.textContent = skipPenInput.value + 's';
 });
 
-// ---- Scores ----
+const soundModeSelect = document.getElementById('soundMode');
+soundModeSelect.addEventListener('change', ()=>{
+  soundMode = soundModeSelect.value;
+});
+
+// ---- Scores (Buzzer mode only) ----
 let scoreA = 0, scoreB = 0;
 const scoreAEl = document.getElementById('scoreA');
 const scoreBEl = document.getElementById('scoreB');
@@ -586,6 +855,10 @@ document.getElementById('aPlus').addEventListener('click', ()=>{ scoreA++; score
 document.getElementById('aMinus').addEventListener('click', ()=>{ scoreA = Math.max(0, scoreA-1); scoreAEl.textContent = scoreA; });
 document.getElementById('bPlus').addEventListener('click', ()=>{ scoreB++; scoreBEl.textContent = scoreB; });
 document.getElementById('bMinus').addEventListener('click', ()=>{ scoreB = Math.max(0, scoreB-1); scoreBEl.textContent = scoreB; });
+
+// ---- Initial state ----
+applyModeUI();
+resetRoundState();
 </script>
 
 </body>
