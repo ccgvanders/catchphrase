@@ -308,8 +308,8 @@
     <div class="setting-row" id="soundRow">
       <span>Sound</span>
       <select id="soundMode">
-        <option value="end" selected>Speed up near the end</option>
-        <option value="start">Speed up from the start</option>
+        <option value="start" selected>Speed up from the start</option>
+        <option value="end">Speed up near the end</option>
         <option value="off">Off</option>
       </select>
     </div>
@@ -533,7 +533,7 @@ let allinTimerMode = 'timed';   // 'timed' | 'none'
 let roundLength = 45;           // buzzer fixed length
 let minLen = 30, maxLen = 90;   // buzzer random range
 let allinRoundLength = 300;     // all-in timed length
-let soundMode = 'end';          // 'off' | 'end' | 'start'
+let soundMode = 'start';          // 'off' | 'end' | 'start'
 
 let hasTimer = true;
 let hiddenCountdown = false;
