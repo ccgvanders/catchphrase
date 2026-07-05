@@ -139,6 +139,7 @@
     transition: transform 0.08s ease, filter 0.15s ease;
   }
   button:active{ transform: scale(0.96); }
+  button:disabled{ opacity: 0.35; cursor: not-allowed; transform:none !important; }
   .btn-got{ flex: 2; background: var(--green); color: #06331f; }
   .btn-skip{ flex: 1; background: var(--surface2); color: var(--text); border: 1px solid rgba(255,255,255,0.15); }
   .btn-got:hover, .btn-skip:hover{ filter: brightness(1.08); }
@@ -539,7 +540,7 @@ let hiddenCountdown = false;
 let currentRoundLength = 0;
 let timeLeft = 0;
 let timerId = null;
-let running = false;
+let state = 'idle'; // 'idle' | 'running' | 'paused'
 let nextTickAt = 0;
 
 function getConfig(){
@@ -622,8 +623,16 @@ function refreshTimerSubUI(){
   }
 }
 
+function updateButtonStates(){
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  startBtn.disabled = (state !== 'idle');
+  pauseBtn.disabled = (state === 'idle');
+  pauseBtn.textContent = (state === 'paused') ? '▶ Resume' : '⏸ Pause';
+}
+
 function resetRoundState(){
-  running = false;
+  state = 'idle';
   if(timerId) clearInterval(timerId);
   const cfg = getConfig();
   hasTimer = cfg.hasTimer;
@@ -631,6 +640,7 @@ function resetRoundState(){
   currentRoundLength = cfg.length;
   timeLeft = currentRoundLength;
   updateRing();
+  updateButtonStates();
   document.getElementById('cardTerm').textContent = "Press Start to begin";
   document.getElementById('cardCat').textContent = "CATEGORY";
   document.getElementById('cardDiff').textContent = "\u00A0";
@@ -691,7 +701,7 @@ function buzz(){
 
 const buzzFlash = document.getElementById('buzzFlash');
 function triggerBuzz(){
-  running = false;
+  state = 'idle';
   if(timerId) clearInterval(timerId);
   buzz();
   buzzFlash.classList.add('show');
@@ -699,6 +709,7 @@ function triggerBuzz(){
   document.getElementById('cardTerm').textContent = "⏰ BUZZ! Round over";
   document.getElementById('cardCat').textContent = "Whoever's holding it, other team scores";
   document.getElementById('cardDiff').textContent = "";
+  updateButtonStates();
   setTimeout(()=>buzzFlash.classList.remove('show'), 650);
 }
 
@@ -728,8 +739,7 @@ function tickLoop(){
 }
 
 document.getElementById('startBtn').addEventListener('click', ()=>{
-  if(running) return;
-  running = true;
+  if(state !== 'idle') return;
   unlockAudio();
   const term = document.getElementById('cardTerm').textContent;
   if(term.includes('Press Start') || term.includes('BUZZ') || term.includes('Round over')){
@@ -741,15 +751,26 @@ document.getElementById('startBtn').addEventListener('click', ()=>{
   currentRoundLength = cfg.length;
   timeLeft = currentRoundLength;
   nextTickAt = 0;
+  state = 'running';
   updateRing();
+  updateButtonStates();
   if(hasTimer){
     timerId = setInterval(tickLoop, 100);
   }
 });
 
 document.getElementById('pauseBtn').addEventListener('click', ()=>{
-  running = false;
-  if(timerId) clearInterval(timerId);
+  if(state === 'running'){
+    state = 'paused';
+    if(timerId) clearInterval(timerId);
+    updateButtonStates();
+  } else if(state === 'paused'){
+    state = 'running';
+    updateButtonStates();
+    if(hasTimer){
+      timerId = setInterval(tickLoop, 100);
+    }
+  }
 });
 
 document.getElementById('resetBtn').addEventListener('click', ()=>{
@@ -757,12 +778,12 @@ document.getElementById('resetBtn').addEventListener('click', ()=>{
 });
 
 document.getElementById('gotBtn').addEventListener('click', ()=>{
-  if(!running) return;
+  if(state !== 'running') return;
   nextCard();
 });
 
 document.getElementById('skipBtn').addEventListener('click', ()=>{
-  if(!running) return;
+  if(state !== 'running') return;
   if(hasTimer){
     const penalty = parseInt(document.getElementById('skipPen').value, 10);
     timeLeft = Math.max(0, timeLeft - penalty);
@@ -781,7 +802,7 @@ const buzzerTimerModeSelect = document.getElementById('buzzerTimerMode');
 buzzerTimerModeSelect.addEventListener('change', ()=>{
   buzzerTimerMode = buzzerTimerModeSelect.value;
   refreshTimerSubUI();
-  if(!running && gameMode === 'buzzer'){
+  if(state === 'idle' && gameMode === 'buzzer'){
     const cfg = getConfig();
     hasTimer = cfg.hasTimer; hiddenCountdown = cfg.hidden;
     currentRoundLength = cfg.length; timeLeft = cfg.length;
@@ -794,7 +815,7 @@ const roundLenVal = document.getElementById('roundLenVal');
 roundLenInput.addEventListener('input', ()=>{
   roundLength = parseInt(roundLenInput.value, 10);
   roundLenVal.textContent = roundLength + 's';
-  if(!running && gameMode === 'buzzer' && buzzerTimerMode === 'fixed'){
+  if(state === 'idle' && gameMode === 'buzzer' && buzzerTimerMode === 'fixed'){
     currentRoundLength = roundLength; timeLeft = roundLength; updateRing();
   }
 });
@@ -817,7 +838,7 @@ const allinTimerModeSelect = document.getElementById('allinTimerMode');
 allinTimerModeSelect.addEventListener('change', ()=>{
   allinTimerMode = allinTimerModeSelect.value;
   refreshTimerSubUI();
-  if(!running && gameMode === 'allin'){
+  if(state === 'idle' && gameMode === 'allin'){
     const cfg = getConfig();
     hasTimer = cfg.hasTimer; hiddenCountdown = cfg.hidden;
     currentRoundLength = cfg.length; timeLeft = cfg.length;
@@ -830,7 +851,7 @@ const allinLenVal = document.getElementById('allinLenVal');
 allinLenInput.addEventListener('input', ()=>{
   allinRoundLength = parseInt(allinLenInput.value, 10);
   allinLenVal.textContent = allinRoundLength + 's';
-  if(!running && gameMode === 'allin' && allinTimerMode === 'timed'){
+  if(state === 'idle' && gameMode === 'allin' && allinTimerMode === 'timed'){
     currentRoundLength = allinRoundLength; timeLeft = allinRoundLength; updateRing();
   }
 });
